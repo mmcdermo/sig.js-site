@@ -1,0 +1,242 @@
+<HTML>
+  <HEAD>
+    <script type='text/javascript' src='http://code.jquery.com/jquery-2.0.3.min.js'></script>
+    <script type='text/javascript' src='sig.js'></script>
+    <script type='text/javascript' src='wg.sig.js'></script>
+    <script type='text/javascript' src='physics.sig.js'></script>
+
+    <script type'text/javascript' src='ace/ace.js' data-ace-base="ace" type="text/javascript" charset="utf-8" ></script>
+    <script type='text/javascript'>
+    function restartExample(code, root){
+	jQuery('#'+root+"_widgetArea").html("");
+	var thisSig = "window." + root + "_sig";
+	var setup = "if("+thisSig+" !== undefined){\n "
+	    + thisSig + ".stop();\n"
+	    + "delete " + thisSig + ";}\n";
+	eval(setup);
+	
+	var out = thisSig + " = jsSig();\n";
+	out += "(function(){ \n"
+	out += " var sig = " + thisSig + "; \n";
+	out += " var wg = wgSig(sig); \n"
+	out += " var physics = physicsSig(sig, wg); \n"
+	out += code; 
+	out += "})();";
+
+	try{ eval(out) }
+	catch(e){ jQuery('#'+root+"_widgetArea").html(e); }
+    }
+    jQuery(document).ready(function(){
+	jQuery('.editor').each(function(){
+	    var editor = ace.edit( jQuery(this).attr('id'));
+	    var root = jQuery(this).attr('data-example');
+	    editor.setTheme("ace/theme/clouds");
+	    editor.getSession().setMode("ace/mode/javascript");
+	    editor.getSession().setUseWrapMode(true);
+	    editor.setValue(jQuery('#'+root+'_js').html());
+	    editor.clearSelection();
+	    editor.getSession().on('change', function(e) {
+		restartExample( editor.getValue(), root );
+	    });
+	    restartExample( editor.getValue(), root );
+	});
+    });
+    </script>
+    <link href='http://fonts.googleapis.com/css?family=News+Cycle|Exo+2:400,700,900italic' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700,400italic' rel='stylesheet' type='text/css'>
+</script>
+    <style type='text/css'>
+    .editor { 
+	height: 600px;;
+	width: 600px; 
+	font-size: 0.9em;
+	font-family: 'Ubuntu Mono', sans-serif;
+    }
+    body { font-family: 'News Cycle', 'Courier'; color:#777777; 
+    	 background-color:#efefef; margin: 0; padding: 0; }
+    .baseWrap { width: 1000px; margin: 0 auto; }
+    .editorCol { float: left; }
+
+    h1 { font-family: 'Exo 2'; background-color:#1EBBA6;
+       padding: 10px; color: white; margin-top: 0px;  }
+    h2, h3 { color :#05B2D2; margin: 10px 0px 5px 0px; }
+    h2 { background-color: #05B2D2; color: white; padding: 10px; }
+    .widgetArea { width: 300px; padding: 50px; float: left; margin: 0; background-color: white; min-height: 500px; }
+    .formGroup { display: inline-block; clear: both; margin: 10px auto; }
+		 
+    .slideBar { margin: 10px; height: 30px; width: 90px; background-color:#dddddd;
+	      overflow: hidden; }
+    .slider { height: 20px; width: 20px; background-color:#56C4C3; 
+	    color: white; font-size: 0.9em; padding: 5px; line-height: 1.2em;}
+    .slider, .slideBar {
+	border-radius: 22px;
+    }
+    .slider { box-shadow: 0px; }
+    </style>
+<style id='springUI_js'>
+    /** Spring Input Parameters **/
+var tensionStr = 
+    '<input type="range" name="tension" min="1" max="100" value="60">';
+var tensionInput = wg.stringSpec(tensionStr).elem();
+var frictionStr =  
+    '<input type="range" name="friction" min="1" max="30" value="5">';
+var frictionInput = wg.stringSpec(frictionStr).elem();
+
+/** Spring  **/
+var imgClickedRecv = sig.receiver(false);
+var endValSig = imgClickedRecv.lift(function(z){ 
+    if(z === true) return 1.0;
+    else return 0; 
+});
+var springParams = sig.ojoin({
+    k : tensionInput.val().def(40)
+    , endVal : endValSig
+    , friction : frictionInput.val().def(3)
+    , force : sig.constant(0)
+});
+var s = physics.spring(springParams);
+
+/** Image Element **/
+var imgStr = "<div style='height:213px; width: 300px; background-image:url(toucan.jpg)'></div>";
+function imgCss(p){ 
+    return { '-webkit-transform': 'scale3d('+p.scale+', '+p.scale+', 1)' };
+}
+var imgParams = {
+    scale: s.lift(function(spring){ return (1/3) * (3 - spring.pos); })
+};
+var cssSig = sig.ojoin(imgParams).lift(imgCss);
+var img = wg.stringSpec(imgStr).css(cssSig).elem();
+var imgClicked = img.clicked().transmitter(imgClickedRecv); 
+
+/** Slider Object **/
+var sliderClickedRecv = sig.receiver(false);
+var sliderEndValSig = sliderClickedRecv.lift(function(z){ 
+    if(z === true) return 1.0;
+    return 0; 
+});
+var springParams2 = sig.ojoin({
+    k : tensionInput.val().def(40)
+    , endVal : sliderEndValSig
+    , friction : frictionInput.val().def(3)
+    , force : sig.constant(0)
+});
+
+var spring2 = physics.spring( springParams2 );
+var slideBarStr = "<div class='slideBar'></div>";
+var sliderGen = function(clicked){
+    return "<div class='slider'>"+(clicked ? "On" : "Off")+"</div>";
+};
+function slidCSS(spring){
+    return { 'margin-left' : 66 * spring.pos + "%" };
+}
+var sliderGenSig = sliderClickedRecv.lift(sliderGen);
+var sliderCSSSig = spring2.lift(slidCSS);
+var slider = wg.spec().gen(sliderGenSig).css(sliderCSSSig).elem();
+var sliderBar = wg.stringSpec(slideBarStr).elem([slider]);
+var sliderClicked = sliderBar.clicked().toggle().transmitter(sliderClickedRecv);
+
+function tagElem(name, contents, classes){
+    return wg.stringSpec("<"+name+">"+contents+"</"+name+">").elem();
+}
+
+/** Render **/
+function fgroup(l){
+    return wg.stringSpec("<div class='formGroup'><label>"+l+"</label><br/></div>");
+}
+var root = wg.spec().elem([
+    tagElem("h3", "Settings")
+    , fgroup("Tension").elem([tensionInput])
+    , fgroup("Friction").elem([frictionInput])
+    , tagElem("h3", "Scale on click")
+    , img
+    , tagElem("h3", "Slide on click")
+    , sliderBar
+]);
+var rend = wg.render(root, sig.constant("#springUI_widgetArea"));
+sig.run();
+</style>
+
+
+
+<style id='Intro_js'>function content(date){ return "<span>The date is: " + date + "</span>" }
+//Lifting feeds the incoming date signal into our function
+var contentSig = sig.Util.date.lift(content);
+
+//To make a WidgetSpec we start with a default spec ( wg.spec() ) and then 
+// change its generation function to be contentSig.
+var widgetSpec = wg.spec().gen(contentSig);
+
+//To make this an element, we call .elem() on the WidgetSpec Signal
+var elem = widgetSpec.elem();
+
+//Finally we render it in the div with id "#Intro_widgetArea"
+wg.render(elem, sig.constant("#Intro_widgetArea"));
+
+sig.run();</style>
+
+<style id='Intro2_js'>var nameInput  = wg.stringSpec("<input></input>").elem();
+var addButton  = wg.stringSpec("<button>Add Todo</button>").elem();
+var todos = sig.Aggregator(); // : Signal [Element] 
+var list = wg.stringSpec("<ul></ul>").elem(todos);
+function todo(name){ return "<li>" + name + "</li>"; }
+
+var todoSpec = wg.spec().gen( nameInput.val().lift(todo) );
+todoSpec.onChange( addButton.clicked().toggle() ).lift(function(spec){
+    todos.aggregate(sig.constant(spec).elem()); 
+});
+
+var root = wg.spec().elem([list, nameInput, addButton]);
+wg.render(root, sig.constant("#Intro2_widgetArea"));
+sig.run();</style>
+
+    <style type='text/css'>
+
+    .genLoad { margin: 1px 0px; height: 3px; width: 100%; position: relative; background-color: #057D9F; overflow: hidden; }
+    .box { position: absolute; height: 3px; width: 3px; background-color: white; }
+    </style>
+  </HEAD>
+  <BODY>
+    <h1>sig.js</h1>
+    <div class='baseWrap'>
+
+      <section>
+	<h2> Dynamic Elements </h2>
+        <div class='editorCol'>
+        <div class='editor' id='Intro_Editor' data-example="Intro"></div>
+        </div>
+	<div class='widgetArea'>
+        In sig.js there are two main constructs that allow for dynamic element creation: WidgetSpecs and Elements
+        <h3> WidgetSpec </h3>
+        A WidgetSpec&apos;s just a specification for rendering an element - it includes how to generate its HTML and how to generate its CSS.
+        <h3> Elements </h3>
+        Elements are the actual instantiation of a WidgetSpec. You can see if an element is being clicked, what its value has, etc.
+<hr/>
+          <div id='Intro_widgetArea'></div>
+        </div>
+      </section>
+
+      <section>
+	<h2> TODO Application - More on Elements </h2>
+        <div class='editorCol'>
+        <div class='editor' id='Intro2_Editor' data-example="Intro2"></div>
+        </div>
+	<div class='widgetArea'>
+        Having declarative methods for elements allows us to easily compose them and create dynamic configurations.
+        <div id='Intro2_widgetArea'></div>
+        </div>
+      </section>
+
+
+
+      <section>
+	<h2> Spring UI </h2>
+        <div class='editorCol'>
+        	<div class='editor' id='springUI_Editor' data-example="springUI"></div>
+        </div>
+	<div class='widgetArea' id='springUI_widgetArea'></div>
+      </section>
+
+    </div>
+    <div style='height: 500px;'></div>
+  </BODY>
+</HTML>
